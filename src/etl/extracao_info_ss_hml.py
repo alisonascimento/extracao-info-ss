@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 import oracledb
 import geopandas as gpd
@@ -138,6 +139,9 @@ def coletar_info_ss(senha_cisdprd):
     # Fechando conexão
     engine.dispose()
 
+    # Removendo valores duplicados
+    info_ss.drop_duplicates(inplace=True)
+
     return info_ss
 
 
@@ -145,9 +149,54 @@ def selecionando_equipamento(info_ss):
     print('\nSelecionando o equipamento indicado na descrição da SS...')
 
     # Selecionando o equipamento indicado na descrição
-    info_ss['equipamento_descricao'] = info_ss.descricao_ss.apply(lambda row: re.findall(r'(?<!\w)(8\d{4}[A-Za-z0-9]{5})(?!\w)', row)[0] if isinstance(row, str) and re.search(r'(?<!\w)(8\d{4}[A-Za-z0-9]{5})(?!\w)', row) else None)
+    info_ss['equipamento_descricao'] = info_ss.descricao_ss.apply(lambda row: re.findall(r'(8\d{4}[A-Za-z0-9]{5})', row)[0] if isinstance(row, str) and re.search(r'(8\d{4}[A-Za-z0-9]{5})', row) else None)
 
     return info_ss
+
+
+def descricao_duplicada(info_ss, path_file_ss_plan_dec_500):
+    print('\nSelecionando as SS com descrição das solicitações repetidas...')
+
+    # removendo colunas desnecessárias
+    info_ss_descricao_duplicada = info_ss.drop(columns=['coordx', 'coordy', 'descricao_seccional', 'descricao_distrital', 'municipio', 'descricao_tipo_ss', 'data_situacao_ss', 'usuario_status', 'descricao_tipo_conclusao', 'regional'])
+
+    # Removendo duplicadas
+    info_ss_descricao_duplicada.drop_duplicates(inplace=True)
+
+    # Removendo duplicadas com valores nulos
+    mask_notna = info_ss_descricao_duplicada.descricao_ss.notna()
+    info_ss_descricao_duplicada = info_ss_descricao_duplicada[mask_notna].copy()
+
+    # Selecionando as descrições duplicadas
+    mask_descricao_duplicada = info_ss_descricao_duplicada.descricao_ss.duplicated(keep=False)
+    info_ss_descricao_duplicada = info_ss_descricao_duplicada[mask_descricao_duplicada].copy()
+
+    # Convertendo coluna unidade_consumidora para Int64
+    info_ss_descricao_duplicada.unidade_consumidora = pd.to_numeric(info_ss_descricao_duplicada.unidade_consumidora, errors='coerce').astype('Int64')
+
+    # Lendo a planilha de SSs do plano dec 500
+    colunas_interesse = ['SS', 'MOTIVO']
+    ss_plan_dec_500 = pd.read_excel(path_file_ss_plan_dec_500, sheet_name='CHAVES', usecols=colunas_interesse)
+
+    # Selecionando as SSs do plano dec 500
+    ss_plan_dec_500 = ss_plan_dec_500[ss_plan_dec_500['MOTIVO'] == 'Plano 500'].copy()
+
+    # Removendo coluna desnecessária
+    ss_plan_dec_500.drop(columns=['MOTIVO'], inplace=True)
+
+    # Removendo duplicadas
+    ss_plan_dec_500.drop_duplicates(inplace=True)
+
+    # Resetando index
+    ss_plan_dec_500.reset_index(drop=True, inplace=True)
+
+    # Verificando se a SS do plano dec 500 está na descrição da SS
+    info_ss_descricao_duplicada.numero_ss = pd.to_numeric(info_ss_descricao_duplicada.numero_ss, errors='coerce').astype('Int64')
+    ss_plan_dec_500.SS = pd.to_numeric(ss_plan_dec_500.SS, errors='coerce').astype('Int64')
+    mask_ss_contido = info_ss_descricao_duplicada.numero_ss.isin(ss_plan_dec_500.SS)
+    info_ss_descricao_duplicada['ss_dec_500'] = np.where(mask_ss_contido, True, False)
+
+    return info_ss_descricao_duplicada
 
 
 def convertendo_utm_lat_lon(info_ss):
@@ -174,32 +223,42 @@ def convertendo_utm_lat_lon(info_ss):
     # Removendo colunas desnecessárias
     ginfo_ss.drop(columns=['coordx', 'coordy', 'geometry'], inplace=True)
 
+    # Removendo duplicadas
+    ginfo_ss.drop_duplicates(inplace=True)
+
     return ginfo_ss
 
 
-def exportando_output(ginfo_ss, path_output, path_file_indicador_atualizacao_bi):
+def exportando_output(ginfo_ss, info_ss_descricao_duplicada, path_output, path_output_descricao_duplicada, path_file_indicador_atualizacao_bi):
     print('\nExportando o resultado final...')
 
     # Salvando o resultado final
-    ginfo_ss.to_csv(path_output, sep=';', decimal=',', index=False, encoding='utf-8')
+    ginfo_ss.to_parquet(path_output, index=False)
+    info_ss_descricao_duplicada.to_parquet(path_output_descricao_duplicada, index=False)
 
-    # Criando arquivo para indicar que deve ser atualizado o bi dos processos jurídicos
+    # Criando arquivo para indicar que deve ser atualizado o bi das informações das SS
     with open(path_file_indicador_atualizacao_bi, 'w') as f:
         f.write('')
 
 
+
 if __name__ == "__main__":
-    print('\nIniciando a extração das informações das SS do CIS...')
+    print('\nIniciando a extração das informações das SS do CIS...\n')
 
     inicio = datetime.now()
 
     # Caminho da pasta onde será armazenada a senha
     path_folder_senha = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Senha Codificada"
 
-    # Caminho onde será salvo o output
-    path_output = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\VDMNRO\\SRDNRO\\Geral\\Alison\\informacoes-ss\\info_ss.txt"
+    # Caminho onde será salvo as informações das SS
+    path_output = r'\\km3rede2\grp4\VCQSD\Projetos\informacoes-ss\info_ss.parquet'
+
+    # Caminho onde será salvo as informações das descrições duplicadas
+    path_output_descricao_duplicada = r'\\km3rede2\grp4\VCQSD\Projetos\informacoes-ss\descricao_duplicada.parquet'
 
     path_file_indicador_atualizacao_bi = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\VCQSD - Atualizar BIs\\info-ss\\info-ss.txt"
+
+    path_file_ss_plan_dec_500 = r'\\mgarede\grp\SDN_O&M\STDNRO\5-GSIM\SSs CADASTRO.xlsx'
 
     # Coletando a senha de acesso ao DB
     senha_cisdprd = obter_senha(path_folder_senha, 'senha_cisdprd.enc', 'chave_cisdprd.key')
@@ -210,11 +269,14 @@ if __name__ == "__main__":
     # Selecionando os equipamentos indicados na descrição da SS
     info_ss = selecionando_equipamento(info_ss)
 
+    # Selecionando as SS com descrição das solicitações repetidas
+    info_ss_descricao_duplicada = descricao_duplicada(info_ss, path_file_ss_plan_dec_500)
+
     # Convertendo utm para lat lon
     ginfo_ss = convertendo_utm_lat_lon(info_ss)
 
     # Exportando resultado final
-    exportando_output(ginfo_ss, path_output, path_file_indicador_atualizacao_bi)
+    exportando_output(ginfo_ss, info_ss_descricao_duplicada, path_output, path_output_descricao_duplicada, path_file_indicador_atualizacao_bi)
 
     fim = datetime.now()
 
