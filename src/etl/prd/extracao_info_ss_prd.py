@@ -243,43 +243,44 @@ def exportando_output(ginfo_ss, info_ss_descricao_duplicada, path_output, path_o
 
 
 if __name__ == "__main__":
-    print('\nIniciando a extração das informações das SS do CIS...\n')
+    try:
+        inicio = datetime.now()
 
-    inicio = datetime.now()
+        print(f'\n\nProcesso iniciado em {inicio.strftime('%d/%m/%Y às %H:%M')} para extraír informações das SS do CIS.')
 
-    # Caminho da pasta onde será armazenada a senha
-    path_folder_senha = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Senha Codificada"
+        # Caminho da pasta onde será armazenada a senha
+        path_folder_senha = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Senha Codificada"
 
-    # Caminho onde será salvo as informações das SS
-    path_output = r'\\km3rede2\grp4\VCQSD\Projetos\informacoes-ss\info_ss.parquet'
+        # Caminho onde será salvo as informações das SS
+        path_output = r'\\km3rede2\grp4\VCQSD\Projetos\informacoes-ss\info_ss.parquet'
 
-    # Caminho onde será salvo as informações das descrições duplicadas
-    path_output_descricao_duplicada = r'\\km3rede2\grp4\VCQSD\Projetos\informacoes-ss\descricao_duplicada.parquet'
+        # Caminho onde será salvo as informações das descrições duplicadas
+        path_output_descricao_duplicada = r'\\km3rede2\grp4\VCQSD\Projetos\informacoes-ss\descricao_duplicada.parquet'
 
-    path_file_indicador_atualizacao_bi = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\VCQSD - Atualizar BIs\\info-ss\\info-ss.txt"
+        path_file_indicador_atualizacao_bi = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\VCQSD - Atualizar BIs\\info-ss\\info-ss.txt"
 
-    path_file_ss_plan_dec_500 = r'\\mgarede\grp\SDN_O&M\STDNRO\5-GSIM\SSs CADASTRO.xlsx'
+        path_file_ss_plan_dec_500 = r'\\mgarede\grp\SDN_O&M\STDNRO\5-GSIM\SSs CADASTRO.xlsx'
 
-    # Coletando a senha de acesso ao DB
-    senha_cisdprd = obter_senha(path_folder_senha, 'senha_cisdprd.enc', 'chave_cisdprd.key')
+        # Coletando a senha de acesso ao DB
+        senha_cisdprd = obter_senha(path_folder_senha, 'senha_cisdprd.enc', 'chave_cisdprd.key')
 
-    # Coletando as informações das SSs geradas a partir de 2024 para MSC respectivas
-    info_ss = coletar_info_ss(senha_cisdprd)
+        # Coletando as informações das SSs geradas a partir de 2024 para MSC respectivas
+        info_ss = coletar_info_ss(senha_cisdprd)
 
-    # Selecionando os equipamentos indicados na descrição da SS
-    info_ss = selecionando_equipamento(info_ss)
+        # Selecionando os equipamentos indicados na descrição da SS
+        info_ss = selecionando_equipamento(info_ss)
 
-    # Selecionando as SS com descrição das solicitações repetidas
-    info_ss_descricao_duplicada = descricao_duplicada(info_ss, path_file_ss_plan_dec_500)
+        # Selecionando as SS com descrição das solicitações repetidas
+        info_ss_descricao_duplicada = descricao_duplicada(info_ss, path_file_ss_plan_dec_500)
 
-    # Convertendo utm para lat lon
-    ginfo_ss = convertendo_utm_lat_lon(info_ss)
+        # Convertendo utm para lat lon
+        ginfo_ss = convertendo_utm_lat_lon(info_ss)
 
-    # Exportando resultado final
-    exportando_output(ginfo_ss, info_ss_descricao_duplicada, path_output, path_output_descricao_duplicada, path_file_indicador_atualizacao_bi)
+        # Exportando resultado final
+        exportando_output(ginfo_ss, info_ss_descricao_duplicada, path_output, path_output_descricao_duplicada, path_file_indicador_atualizacao_bi)
 
-    fim = datetime.now()
+        fim = datetime.now()
 
-    print(f'\nDecorrido {fim-inicio} para rodar o script.')
-
-    sleep(43200)
+        print(f"\nProcesso finalizado com sucesso em {fim.strftime('%d/%m/%Y às %H:%M')}. Decorrido {fim - inicio}")
+    except ValueError as e:
+        print(f'\nOcorreu o seguinte erro ao rodar o script: {e}')
