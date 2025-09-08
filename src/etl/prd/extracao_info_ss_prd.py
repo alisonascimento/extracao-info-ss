@@ -86,52 +86,71 @@ def coletar_info_ss(senha_cisdprd):
     engine = create_engine(f'oracle+oracledb://{uid}:{pwd}@{db}')
 
     query = f"""
-            SELECT 
-                cos.NUM_SEQ_OPER_COS numero_ss,
-                cos.COD_UN_CONS_COS unidade_consumidora,
-                cos.DTA_INC_COS data_criacao_ss,
-                cos.NOM_USU_INC_COS usuario_inclusao,
-                cos.COD_SUB_TIPO_OS_COS tipo_ss,
-                cst.DES_SUB_TIPO_OS_STO descricao_tipo_ss,
-                cos.DTA_SITU_COS data_situacao_ss,
-                cos.COD_SITU_COS situacao_ss,
-                tsi.DES_SITU_TSI descricao_situacao_ss,
-                cos.NOM_USU_SITU_COS usuario_status,
-                cos.DTA_CONCL_SERV_COS data_conclusao,
-                ttc.DES_TIPO_CONCL_OS_CNC descricao_tipo_conclusao,
-                cms.DES_OBS_ATDE_CMI descricao_ss,
-                cms.DES_OBS_EXEC_SERV_CMI observacao_execucao,
-                rfl.SIG_REGI_RLF regional,
-                rfl.NOM_MUN_RLF municipio,
-                rfl.SIG_DIST_RLF distrital,
-                rfl.DES_DIST_RLF descricao_distrital,
-                rfl.SIG_SECC_RLF sigla_seccional,
-                rfl.DES_SECC_RLF descricao_seccional,
-                cps.NUM_COORX_PSX coordx,
-                cps.NUM_COORY_PSX coordy
-            FROM CAD_ORD_SERV cos
-            LEFT JOIN TAB_SITUAC tsi 
-                ON cos.COD_TIPO_SITU_COS = tsi.COD_TIPO_SITU_TSI
-                AND cos.COD_SITU_COS = tsi.COD_SITU_TSI
-            LEFT JOIN CAD_MISCELANEA_SS_OS cms 
-                ON cos.NUM_SEQ_OPER_COS = cms.NUM_SEQ_OPER_CMI
-            LEFT JOIN REL_FILTRO rfl
-                ON cos.COD_LOC_COS = rfl.COD_LOC_RLF
-            LEFT JOIN TAB_TIPO_CONCL_ORD_SERV ttc
-                ON cos.COD_TIPO_OS_COS = ttc.COD_TIPO_OS_CNC
-                AND cos.COD_SUB_TIPO_OS_COS = ttc.COD_SUB_TIPO_OS_CNC
-                AND cos.COD_TIPO_CONCL_COS = ttc.COD_TIPO_CONCL_OS_CNC
-            LEFT JOIN CAD_SUB_TIPO_OS cst
-                ON cos.COD_TIPO_OS_COS = cst.COD_TIPO_OS_STO
-                AND cos.COD_SUB_TIPO_OS_COS = cst.COD_SUB_TIPO_OS_STO
-            LEFT JOIN cad_uc_ee cuc
-                ON cos.COD_UN_CONS_COS = cuc.COD_UN_CONS_UEE
-            LEFT JOIN cad_pste_sist_extn cps
-                ON cuc.NUM_PSTE_UEE = cps.NUM_PSTE_PSX
-            WHERE cos.DTA_INC_COS >= DATE '2024-01-01'
-                AND cos.COD_SUB_TIPO_OS_COS IN ('722', '724', '726', '674', '727', '669')
-            ORDER BY cos.DTA_INC_COS DESC
-            """
+        SELECT 
+            cos.NUM_SEQ_OPER_COS numero_ss,
+            cos.COD_UN_CONS_COS unidade_consumidora,
+            cos.DTA_INC_COS data_criacao_ss,
+            cos.NOM_USU_INC_COS usuario_inclusao,
+            cos.COD_SUB_TIPO_OS_COS tipo_ss,
+            cst.DES_SUB_TIPO_OS_STO descricao_tipo_ss,
+            cos.DTA_SITU_COS data_situacao_ss,
+            cos.COD_SITU_COS situacao_ss,
+            tsi.DES_SITU_TSI descricao_situacao_ss,
+            cos.NOM_USU_SITU_COS usuario_status,
+            cur.DTA_SERV_CUR data_inicio_servico,
+            (cur.QTD_KM_FIM_CUR - cur.QTD_KM_INIC_CUR) km_percorrido,
+            tes.NOM_EQP_TES equipe,
+            cos.DTA_CONCL_SERV_COS data_conclusao,
+            ttc.DES_TIPO_CONCL_OS_CNC descricao_tipo_conclusao,
+            cmi.DES_OBS_ATDE_CMI descricao_ss,
+            cmi.DES_OBS_EXEC_SERV_CMI observacao_execucao,
+            rfl.SIG_REGI_RLF regional,
+            rfl.NOM_MUN_RLF municipio,
+            rfl.SIG_DIST_RLF distrital,
+            rfl.DES_DIST_RLF descricao_distrital,
+            rfl.SIG_SECC_RLF sigla_seccional,
+            rfl.DES_SECC_RLF descricao_seccional,
+            cps.NUM_COORX_PSX coordx,
+            cps.NUM_COORY_PSX coordy,
+            juc.COD_CONJ_JUC num_cea,
+            cju.DES_CONJ_CJU nome_cea
+        FROM CAD_ORD_SERV cos
+        LEFT JOIN TAB_SITUAC tsi 
+            ON cos.COD_TIPO_SITU_COS = tsi.COD_TIPO_SITU_TSI
+            AND cos.COD_SITU_COS = tsi.COD_SITU_TSI
+        LEFT JOIN CAD_MISCELANEA_SS_OS cmi
+            ON cos.NUM_SEQ_OPER_COS = cmi.NUM_SEQ_OPER_CMI
+            AND cos.COD_CPU_COS = cmi.COD_CPU_CMI
+            AND cos.NUM_SEQ_GER_COS = cmi.NUM_SEQ_GER_CMI
+        LEFT JOIN CAD_RECURSOS_OS cur
+            ON cos.NUM_SEQ_OPER_COS = cur.NUM_SEQ_OPER_OS_CUR
+            AND cos.COD_CPU_COS = cur.COD_CPU_OS_CUR
+            AND cos.NUM_SEQ_GER_COS = cur.NUM_SEQ_GER_OS_CUR
+        LEFT JOIN TAB_EQUIPE_SERV tes
+            ON cur.COD_EQP_CUR = tes.COD_EQP_TES
+            AND cur.COD_TIPO_EQP_CUR = tes.COD_TIPO_EQP_TES
+        LEFT JOIN REL_FILTRO rfl
+            ON cos.COD_LOC_COS = rfl.COD_LOC_RLF
+        LEFT JOIN TAB_TIPO_CONCL_ORD_SERV ttc
+            ON cos.COD_TIPO_OS_COS = ttc.COD_TIPO_OS_CNC
+            AND cos.COD_SUB_TIPO_OS_COS = ttc.COD_SUB_TIPO_OS_CNC
+            AND cos.COD_TIPO_CONCL_COS = ttc.COD_TIPO_CONCL_OS_CNC
+        LEFT JOIN CAD_SUB_TIPO_OS cst
+            ON cos.COD_TIPO_OS_COS = cst.COD_TIPO_OS_STO
+            AND cos.COD_SUB_TIPO_OS_COS = cst.COD_SUB_TIPO_OS_STO
+        LEFT JOIN cad_uc_ee cuc
+            ON cos.COD_UN_CONS_COS = cuc.COD_UN_CONS_UEE
+        LEFT JOIN cad_pste_sist_extn cps
+            ON cuc.NUM_PSTE_UEE = cps.NUM_PSTE_PSX
+        LEFT JOIN REL_CONJ_UC juc
+            ON cos.COD_UN_CONS_COS = juc.COD_UN_CONS_JUC
+            AND juc.DTA_FIM_VAL_JUC IS NULL
+        LEFT JOIN TAB_CONJ cju
+            ON juc.COD_CONJ_JUC = cju.COD_CONJ_CJU
+        WHERE cos.DTA_INC_COS >= DATE '2024-01-01'
+            AND cos.COD_SUB_TIPO_OS_COS IN ('722', '724', '726', '674', '727', '669')
+        ORDER BY cos.DTA_INC_COS DESC
+    """
 
     # Executando a query
     info_ss = pd.read_sql(query, engine)
