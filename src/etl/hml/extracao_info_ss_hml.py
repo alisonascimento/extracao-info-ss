@@ -4,8 +4,9 @@ import os
 import oracledb
 import geopandas as gpd
 import re
-from time import sleep
-from datetime import datetime
+import pyodbc
+import warnings
+from datetime import datetime, timedelta
 from shapely.geometry import Point
 from cryptography.fernet import Fernet
 from sqlalchemy import create_engine
@@ -173,11 +174,194 @@ def selecionando_equipamento(info_ss):
     return info_ss
 
 
+def selecionando_nome_usuario(info_ss, senha_denodo):
+    print('\nSelecionando o nome do usuário e registro profissional...')
+
+    # Omitindo warnings na leitura dos dados do Denodo
+    warnings.filterwarnings("ignore", category=UserWarning, message='pandas only supports SQLAlchemy')
+
+    # Informações de login
+    username = 'c800984'
+    password = senha_denodo
+    server = 'vidgcpprd.copel.nt'
+    port = '9996'
+    database = 'admin'
+    driver = 'DenodoODBC Unicode(x64)'
+
+    # Criando conexão
+    odbc_str = (
+        f"DRIVER={{{driver}}};"
+        f"SERVER={server};"
+        f"PORT={port};"
+        f"DATABASE={database};"
+        f"UID={username};"
+        f"PWD={password};"
+    )
+    conn = pyodbc.connect(odbc_str)
+
+    # Query para coletar os funcionários Copel
+    query = """
+        SELECT 
+            registro_profissional AS registro_profissional, 
+            nome_profissional AS nome_profissional, 
+            sigla_org_lotacao_profissional AS sigla_org_lotacao_profissional,
+            situacao_profissional AS situacao_profissional
+        FROM publico.profissional
+    """
+    funcionarios = pd.read_sql(query, conn) # type: ignore
+
+    # Fechando conexão
+    conn.close()
+
+    print('\nAdicionando informações do usuário...')
+
+    # Criando uma coluna com somente os números dos registros dos funcionários que criaram a SS
+    mask_funcionario = info_ss.usuario_inclusao.str.upper().str.startswith(('C', 'T', 'E'))
+    info_ss.loc[mask_funcionario, 'registro_profissional'] = info_ss.loc[mask_funcionario, 'usuario_inclusao'].apply(lambda row: re.findall(r'(\d+)', row)[0])
+    info_ss.registro_profissional = pd.to_numeric(info_ss.registro_profissional, errors='coerce').astype('Int64')
+
+    # Adicionando as informações do funcionário
+    funcionarios.registro_profissional = pd.to_numeric(funcionarios.registro_profissional, errors='coerce').astype('Int64')
+    info_ss = info_ss.merge(funcionarios, how='left', on='registro_profissional')
+
+    # Corrigindo a informação da coluna usuario_inclusao
+    mask_notna = info_ss.nome_profissional.notna()
+    info_ss.loc[mask_notna, 'usuario_inclusao'] = info_ss.loc[mask_notna, 'usuario_inclusao'] + " - " + info_ss.loc[mask_notna, 'nome_profissional'] + " - " + info_ss.loc[mask_notna, 'sigla_org_lotacao_profissional'] + " - " + info_ss.loc[mask_notna, 'situacao_profissional']
+
+    # Removendo colunas desnecessárias
+    info_ss.drop(columns=['registro_profissional', 'nome_profissional', 'sigla_org_lotacao_profissional', 'situacao_profissional'], inplace=True)
+
+    # Criando uma coluna com somente os números dos registros dos funcionários que atualizaram a SS
+    mask_funcionario = info_ss.usuario_status.str.upper().str.startswith(('C', 'T', 'E'))
+    info_ss.loc[mask_funcionario, 'registro_profissional'] = info_ss.loc[mask_funcionario, 'usuario_status'].apply(lambda row: re.findall(r'(\d+)', row)[0])
+    info_ss.registro_profissional = pd.to_numeric(info_ss.registro_profissional, errors='coerce').astype('Int64')
+
+    # Adicionando as informações do funcionário
+    info_ss = info_ss.merge(funcionarios, how='left', on='registro_profissional')
+
+    # Corrigindo a informação da coluna usuario_status
+    mask_notna = info_ss.nome_profissional.notna()
+    info_ss.loc[mask_notna, 'usuario_status'] = info_ss.loc[mask_notna, 'usuario_status'] + " - " + info_ss.loc[mask_notna, 'nome_profissional'] + " - " + info_ss.loc[mask_notna, 'sigla_org_lotacao_profissional']
+
+    # Removendo colunas desnecessárias
+    info_ss.drop(columns=['registro_profissional', 'nome_profissional', 'sigla_org_lotacao_profissional'], inplace=True)
+
+    return info_ss
+
+
+def cea_critico(info_ss, path_file_cea_critico):
+    # Lendo arquivo de conjuntos críticos
+    cea_critico = pd.read_excel(path_file_cea_critico, header=None, names=['nome_cea', 'num_cea'])
+
+    # Adicionando indicador se o conjunto é critico
+    info_ss.num_cea = pd.to_numeric(info_ss.num_cea, errors='coerce').astype('Int64')
+    cea_critico.num_cea = pd.to_numeric(cea_critico.num_cea, errors='coerce').astype('Int64')
+    info_ss['indicador_cea_critico'] = np.where(info_ss.num_cea.isin(cea_critico.num_cea), 'SIM', 'NÃO')
+
+    # Corrigindo o nome do conjunto
+    mask_num_cea_notna = info_ss.num_cea.notna()
+    mask_cea_critico = info_ss.indicador_cea_critico == 'SIM'
+    info_ss.loc[mask_num_cea_notna & mask_cea_critico, 'nome_num_cea'] = info_ss.loc[mask_num_cea_notna & mask_cea_critico, 'nome_cea'] + " (" + info_ss.loc[mask_num_cea_notna & mask_cea_critico, 'num_cea'].astype(str) + ") - CRÍTICO"
+    info_ss.loc[mask_num_cea_notna & (~mask_cea_critico), 'nome_num_cea'] = info_ss.loc[mask_num_cea_notna & (~mask_cea_critico), 'nome_cea'] + " (" + info_ss.loc[mask_num_cea_notna & (~mask_cea_critico), 'num_cea'].astype(str) + ")"
+
+    # Removendo colunas desnecessárias
+    info_ss.drop(columns=['num_cea', 'nome_cea'], inplace=True)
+
+    return info_ss
+
+
+def classificar_ss(texto, mapeamento):
+    for chave, valor in mapeamento.items():
+        if chave in texto:
+            return valor
+    return "OUTROS"
+
+
+def indicador_ss(info_ss, path_file_espacadores):
+    # Mapeamento dos padrões exibidos nas SS
+    mapeamento = {
+        "#PLANODEC500": "#PLANODEC500ALIM",
+        "#PLANDEC500": "#PLANODEC500ALIM",
+        "#SENTINELA": "#SENTINELA",
+        "#ESPACADORES": "#ESPACADORES",
+        "#FUMICULTOR": "#FUMICULTOR",
+        "#RECORR": "#RECORRENCIA",
+        "#VCQSD": "#VCQSD",
+        "#GDEC": "#GDEC"
+    }
+
+    # Adicionando um filtro para indicar o tipo de SS aberto
+    mask_descricao_ss_notna = info_ss.descricao_ss.notna()
+    info_ss.loc[mask_descricao_ss_notna, "filtro"] = info_ss.loc[mask_descricao_ss_notna, "descricao_ss"].apply(lambda descricao: classificar_ss(descricao, mapeamento))
+
+    # Atribuindo OUTROS para as SS com descrição vazias
+    mask_descricao_ss_isna = info_ss.descricao_ss.isna()
+    info_ss.loc[mask_descricao_ss_isna, "filtro"] = 'OUTROS'
+
+    # Lendo arquivo que contém as SS criadas para instalar espaçadores
+    coluna_interesse = ['numero_ss']
+    espacadores = pd.read_excel(path_file_espacadores, usecols=coluna_interesse)
+
+    # Identificando se a SS foi gerada para instalar espaçadores
+    espacadores.numero_ss = pd.to_numeric(espacadores.numero_ss, errors='coerce').astype('Int64')
+    espacadores.drop_duplicates(inplace=True)
+    mask_numero_ss_contido = info_ss.numero_ss.isin(espacadores.numero_ss)
+    info_ss.loc[mask_numero_ss_contido, "filtro"] = '#ESPACADORES'
+
+    return info_ss
+
+
+def calculando_ci(info_ss, path_file_ci_liquido):
+    # Lendo informações do ci líquido dos equipamentos
+    ci = pd.read_parquet(path_file_ci_liquido)
+
+    # Convertendo coluna data_referencia para datetime
+    ci.data_referencia = pd.to_datetime(ci.data_referencia, yearfirst=True)
+
+    # Selecionando somente os últimos 3 meses
+    mask_data_referencia = ci.data_referencia >= (datetime.now() - timedelta(days=90))
+    ci = ci[mask_data_referencia].copy()
+
+    # Selecionando somente interrupções acidentais
+    mask_acidental = ci.tipo_interrupcao == 'ACIDENTAL'
+    ci = ci[mask_acidental].copy()
+
+    # Selecionando somente interrupções na rede
+    mask_rede = ci.area_eletrica_interrupcao == 'REDE'
+    ci = ci[mask_rede].copy()
+
+    # Removendo interrupções em jumper e unidade consumidora
+    mask_jumper_uc = ci.tipo_equipamento.isin(['JP', 'BJ', 'UC'])
+    ci = ci[~mask_jumper_uc].copy()
+
+    # Simplificando a informação da coluna tipo_equipamento
+    mask_posto = ci.tipo_equipamento == 'PT'
+    ci.loc[mask_posto, 'tipo_equipamento'] = 'T'
+    ci.loc[~mask_posto, 'tipo_equipamento'] = 'C'
+
+    # Agrupando ci líquido por equipamento
+    ci = ci.groupby(['equipamento', 'tipo_equipamento'])['ci_liquido'].sum().reset_index()
+
+    # Adicionando o ci líquido dos equipamentos dos últimos 3 meses
+    mask_equipamento_descricao_notna = info_ss.equipamento_descricao.notna()
+    mask_chave = ci.tipo_equipamento != 'T'
+    info_ss.loc[mask_equipamento_descricao_notna, 'ci_liquido'] = info_ss.loc[mask_equipamento_descricao_notna, 'equipamento_descricao'].map(ci[mask_chave].set_index('equipamento').ci_liquido)
+    mask_ci_liquido_isna = info_ss.ci_liquido.isna()
+    info_ss.loc[mask_equipamento_descricao_notna & mask_ci_liquido_isna, 'ci_liquido'] = info_ss.loc[mask_equipamento_descricao_notna & mask_ci_liquido_isna, 'equipamento_descricao'].map(ci[~mask_chave].set_index('equipamento').ci_liquido)
+    mask_ci_liquido_isna = info_ss.ci_liquido.isna()
+    info_ss.loc[mask_equipamento_descricao_notna & mask_ci_liquido_isna, 'ci_liquido'] = 0
+
+    return info_ss
+
+
 def descricao_duplicada(info_ss, path_file_ss_plan_dec_500):
     print('\nSelecionando as SS com descrição das solicitações repetidas...')
 
-    # removendo colunas desnecessárias
-    info_ss_descricao_duplicada = info_ss.drop(columns=['coordx', 'coordy', 'descricao_seccional', 'descricao_distrital', 'municipio', 'descricao_tipo_ss', 'data_situacao_ss', 'usuario_status', 'descricao_tipo_conclusao', 'regional'])
+    # # removendo colunas desnecessárias
+    # info_ss_descricao_duplicada = info_ss.drop(columns=['coordx', 'coordy', 'descricao_seccional', 'descricao_distrital', 'municipio', 'descricao_tipo_ss', 'data_situacao_ss', 'usuario_status', 'descricao_tipo_conclusao', 'regional'])
+
+    # Criando DataFrame que vai receber as SS com descrição duplicadas
+    info_ss_descricao_duplicada = info_ss.copy()
 
     # Removendo duplicadas
     info_ss_descricao_duplicada.drop_duplicates(inplace=True)
@@ -276,18 +460,44 @@ if __name__ == "__main__":
         # Caminho onde será salvo as informações das descrições duplicadas
         path_output_descricao_duplicada = r'\\km3rede2\grp4\VCQSD\Projetos\informacoes-ss\descricao_duplicada.parquet'
 
+        # Caminho para salvar arquivo que será reconhecido pelo Power Automate para rodar o fluxo que atualiza o BI
         path_file_indicador_atualizacao_bi = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\VCQSD - Atualizar BIs\\info-ss\\info-ss.txt"
 
+        # Caminho para o arquivo com as SS do plano dec 500
         path_file_ss_plan_dec_500 = r'\\mgarede\grp\SDN_O&M\STDNRO\5-GSIM\SSs CADASTRO.xlsx'
+
+        # Caminho para o arquivo com os conjuntos críticos
+        path_file_cea_critico = r"\\km3rede2\grp4\VCQSD\Projetos\cea-critico\35_ceas_criticos.xlsx"
+
+        # Caminho para o arquivo com o número das SS indicadas pela VCQSD para instalar espaçadores
+        path_file_espacadores = r"\\km3rede2\grp4\VCQSD\Projetos\PlanoDEC500\Arquivos_BI\SS_espacadores.xlsx"
+
+        # Caminho para o arquivo com o ci líquido dos equipamentos
+        path_file_ci_liquido = r"\\km3rede2\grp4\VCQSD\Projetos\alimentadores-chi-ci\chi_ci_liquido.parquet"
 
         # Coletando a senha de acesso ao DB
         senha_cisdprd = obter_senha(path_folder_senha, 'senha_cisdprd.enc', 'chave_cisdprd.key')
+
+        # Coletando a senha de acesso ao DB
+        senha_denodo = obter_senha(path_folder_senha)
 
         # Coletando as informações das SSs geradas a partir de 2024 para MSC respectivas
         info_ss = coletar_info_ss(senha_cisdprd)
 
         # Selecionando os equipamentos indicados na descrição da SS
         info_ss = selecionando_equipamento(info_ss)
+
+        # Adicionando o nome do usuário que criou e atualizou a SS
+        info_ss = selecionando_nome_usuario(info_ss, senha_denodo)
+
+        # Adicionando a informação se o CEA é crítico
+        info_ss = cea_critico(info_ss, path_file_cea_critico)
+
+        # Adicionando a informação da indicação do tipo de SS criada
+        info_ss = indicador_ss(info_ss, path_file_espacadores)
+
+        # Calculando o ci líquido dos equipamentos nos últimos 3 meses
+        info_ss = calculando_ci(info_ss, path_file_ci_liquido)
 
         # Selecionando as SS com descrição das solicitações repetidas
         info_ss_descricao_duplicada = descricao_duplicada(info_ss, path_file_ss_plan_dec_500)
