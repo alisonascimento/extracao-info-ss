@@ -143,6 +143,7 @@ def coletar_info_ss(senha_cisdprd):
             ON cos.COD_UN_CONS_COS = cuc.COD_UN_CONS_UEE
         LEFT JOIN cad_pste_sist_extn cps
             ON cuc.NUM_PSTE_UEE = cps.NUM_PSTE_PSX
+            AND cps.COD_SITU_PSX = 'AT'
         LEFT JOIN REL_CONJ_UC juc
             ON cos.COD_UN_CONS_COS = juc.COD_UN_CONS_JUC
             AND juc.DTA_FIM_VAL_JUC IS NULL
@@ -159,8 +160,12 @@ def coletar_info_ss(senha_cisdprd):
     # Fechando conexão
     engine.dispose()
 
+    # Ordenando as SS por data de criação
+    info_ss.data_criacao_ss = pd.to_datetime(info_ss.data_criacao_ss, yearfirst=True)
+    info_ss.sort_values(by='data_criacao_ss', ascending=False, inplace=True)
+
     # Removendo valores duplicados
-    info_ss.drop_duplicates(inplace=True)
+    info_ss.drop_duplicates(subset='numero_ss', inplace=True)
 
     return info_ss
 
@@ -467,7 +472,8 @@ if __name__ == "__main__":
         path_file_ss_plan_dec_500 = r'\\mgarede\grp\SDN_O&M\STDNRO\5-GSIM\SSs CADASTRO.xlsx'
 
         # Caminho para o arquivo com os conjuntos críticos
-        path_file_cea_critico = r"\\km3rede2\grp4\VCQSD\Projetos\cea-critico\35_ceas_criticos.xlsx"
+        # path_file_cea_critico = r"\\km3rede2\grp4\VCQSD\Projetos\cea-critico\35_ceas_criticos.xlsx"
+        path_file_cea_critico = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Programas\\Relatorio_semanal\\35_ceas_criticos.xlsx"
 
         # Caminho para o arquivo com o número das SS indicadas pela VCQSD para instalar espaçadores
         path_file_espacadores = r"\\km3rede2\grp4\VCQSD\Projetos\PlanoDEC500\Arquivos_BI\SS_espacadores.xlsx"
