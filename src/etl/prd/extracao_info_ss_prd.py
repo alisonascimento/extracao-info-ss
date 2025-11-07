@@ -161,8 +161,8 @@ def coletar_info_ss(senha_cisdprd):
     engine.dispose()
 
     # Ordenando as SS por data de criação
-    info_ss.data_criacao_ss = pd.to_datetime(info_ss.data_criacao_ss, yearfirst=True)
-    info_ss.sort_values(by='data_criacao_ss', ascending=False, inplace=True)
+    info_ss.data_conclusao = pd.to_datetime(info_ss.data_conclusao, yearfirst=True)
+    info_ss.sort_values(by=['numero_ss', 'data_conclusao'], ascending=False, inplace=True)
 
     # Removendo valores duplicados
     info_ss.drop_duplicates(subset='numero_ss', inplace=True)
@@ -255,6 +255,8 @@ def selecionando_nome_usuario(info_ss, senha_denodo):
 
 
 def cea_critico(info_ss, path_file_cea_critico):
+    print('\nAdicionando informações dos CEA críticos...')
+
     # Lendo arquivo de conjuntos críticos
     cea_critico = pd.read_excel(path_file_cea_critico, header=None, names=['nome_cea', 'num_cea'])
 
@@ -270,7 +272,7 @@ def cea_critico(info_ss, path_file_cea_critico):
     info_ss.loc[mask_num_cea_notna & (~mask_cea_critico), 'nome_num_cea'] = info_ss.loc[mask_num_cea_notna & (~mask_cea_critico), 'nome_cea'] + " (" + info_ss.loc[mask_num_cea_notna & (~mask_cea_critico), 'num_cea'].astype(str) + ")"
 
     # Removendo colunas desnecessárias
-    info_ss.drop(columns=['num_cea', 'nome_cea'], inplace=True)
+    info_ss.drop(columns=['nome_cea'], inplace=True)
 
     return info_ss
 
@@ -283,12 +285,14 @@ def classificar_ss(texto, mapeamento):
 
 
 def indicador_ss(info_ss, path_file_espacadores):
+    print('\nAdicionando filtro de indicadores das SS...')
+
     # Mapeamento dos padrões exibidos nas SS
     mapeamento = {
         "#PLANODEC500": "#PLANODEC500ALIM",
         "#PLANDEC500": "#PLANODEC500ALIM",
         "#SENTINELA": "#SENTINELA",
-        "#ESPACADORES": "#ESPACADORES",
+        #"#ESPACADORES": "#ESPACADORES",
         "#FUMICULTOR": "#FUMICULTOR",
         "#RECORR": "#RECORRENCIA",
         "#VCQSD": "#VCQSD",
@@ -304,8 +308,11 @@ def indicador_ss(info_ss, path_file_espacadores):
     info_ss.loc[mask_descricao_ss_isna, "filtro"] = 'OUTROS'
 
     # Lendo arquivo que contém as SS criadas para instalar espaçadores
-    coluna_interesse = ['numero_ss']
-    espacadores = pd.read_excel(path_file_espacadores, usecols=coluna_interesse)
+    coluna_interesse = ['numero_ss', 'considerar_calculo']
+    espacadores = pd.read_parquet(path_file_espacadores, columns=coluna_interesse)
+
+    # Selecionando somente as SS que foram consideradas para o cálculo do plano 77/80
+    espacadores = espacadores[espacadores.considerar_calculo].copy()
 
     # Identificando se a SS foi gerada para instalar espaçadores
     espacadores.numero_ss = pd.to_numeric(espacadores.numero_ss, errors='coerce').astype('Int64')
@@ -317,6 +324,8 @@ def indicador_ss(info_ss, path_file_espacadores):
 
 
 def calculando_ci(info_ss, path_file_ci_liquido):
+    print('\nAdicionando o cálculo do CI líquido dos equipamentos...')
+
     # Lendo informações do ci líquido dos equipamentos
     ci = pd.read_parquet(path_file_ci_liquido)
 
@@ -476,7 +485,7 @@ if __name__ == "__main__":
         path_file_cea_critico = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Programas\\Relatorio_semanal\\35_ceas_criticos.xlsx"
 
         # Caminho para o arquivo com o número das SS indicadas pela VCQSD para instalar espaçadores
-        path_file_espacadores = r"\\km3rede2\grp4\VCQSD\Projetos\PlanoDEC500\Arquivos_BI\SS_espacadores.xlsx"
+        path_file_espacadores = r"\\km3rede2\grp4\VCQSD\Projetos\plano-77-80\ss-espacadores-historico\ss_espacadores_historico.parquet"
 
         # Caminho para o arquivo com o ci líquido dos equipamentos
         path_file_ci_liquido = r"\\km3rede2\grp4\VCQSD\Projetos\alimentadores-chi-ci\chi_ci_liquido.parquet"
