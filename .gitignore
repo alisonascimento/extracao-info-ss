@@ -11,6 +11,9 @@ power-bi/
 bat-file/
 .vscode/
 
+# Files
+log_execucao.txt
+
 # Created by git when using merge tools for conflicts
 *.BACKUP.*
 *.BASE.*
