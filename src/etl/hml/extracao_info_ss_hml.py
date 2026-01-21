@@ -6,12 +6,23 @@ import geopandas as gpd
 import re
 import pyodbc
 import warnings
+import logging
+import sys
 from datetime import datetime, timedelta
 from shapely.geometry import Point
 from cryptography.fernet import Fernet
 from sqlalchemy import create_engine
 
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(r"\\Dis610912\srdnro\Alison do Nascimento - 800984\Projetos\extracao-info-ss\bat-file\log_execucao.txt", mode="w", encoding="latin-1"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
 def gerar_chave(path_arquivo_chave):
     # Função para gerar e armazenar uma chave
@@ -76,12 +87,12 @@ def obter_senha(path_folder_senha, senha_enc='senha.enc', chave_key='chave.key')
     return senha
 
 
-def coletar_info_ss(senha_cisdprd):
-    print('\nColetando informações das SS do CIS...')
+def coletar_info_ss(usuario_cisdprd, senha_cisdprd):
+    logging.info('Coletando informações das SS do CIS...')
 
     # Instanciando oracle para acessar via Python
     oracledb.init_oracle_client(lib_dir=r"C:\Programs\Oracle\instantclient_23_7", config_dir=r"C:\APL\Oracle12_32\12CR2\network\admin")
-    uid = 'DG_C800984'
+    uid = usuario_cisdprd
     pwd = senha_cisdprd
     db = 'cisdprd'
     engine = create_engine(f'oracle+oracledb://{uid}:{pwd}@{db}')
@@ -171,7 +182,7 @@ def coletar_info_ss(senha_cisdprd):
 
 
 def selecionando_equipamento(info_ss):
-    print('\nSelecionando o equipamento indicado na descrição da SS...')
+    logging.info('Selecionando o equipamento indicado na descrição da SS...')
 
     # Selecionando o equipamento indicado na descrição
     info_ss['equipamento_descricao'] = info_ss.descricao_ss.apply(lambda row: re.findall(r'(8\d{4}[A-Za-z0-9]{5})', row)[0] if isinstance(row, str) and re.search(r'(8\d{4}[A-Za-z0-9]{5})', row) else None)
@@ -180,13 +191,13 @@ def selecionando_equipamento(info_ss):
 
 
 def selecionando_nome_usuario(info_ss, senha_denodo):
-    print('\nSelecionando o nome do usuário e registro profissional...')
+    logging.info('Selecionando o nome do usuário e registro profissional...')
 
     # Omitindo warnings na leitura dos dados do Denodo
     warnings.filterwarnings("ignore", category=UserWarning, message='pandas only supports SQLAlchemy')
 
     # Informações de login
-    username = 'c800984'
+    username = os.getlogin()
     password = senha_denodo
     server = 'vidgcpprd.copel.nt'
     port = '9996'
@@ -218,7 +229,7 @@ def selecionando_nome_usuario(info_ss, senha_denodo):
     # Fechando conexão
     conn.close()
 
-    print('\nAdicionando informações do usuário...')
+    logging.info('Adicionando informações do usuário...')
 
     # Criando uma coluna com somente os números dos registros dos funcionários que criaram a SS
     mask_funcionario = info_ss.usuario_inclusao.str.upper().str.startswith(('C', 'T', 'E'))
@@ -255,7 +266,7 @@ def selecionando_nome_usuario(info_ss, senha_denodo):
 
 
 def cea_critico(info_ss, path_file_cea_critico):
-    print('\nAdicionando informações dos CEA críticos...')
+    logging.info('Adicionando informações dos CEA críticos...')
 
     # Lendo arquivo de conjuntos críticos
     cea_critico = pd.read_excel(path_file_cea_critico, header=None, names=['nome_cea', 'num_cea'])
@@ -285,7 +296,7 @@ def classificar_ss(texto, mapeamento):
 
 
 def indicador_ss(info_ss, path_file_espacadores):
-    print('\nAdicionando filtro de indicadores das SS...')
+    logging.info('Adicionando filtro de indicadores das SS...')
 
     # Mapeamento dos padrões exibidos nas SS
     mapeamento = {
@@ -324,7 +335,7 @@ def indicador_ss(info_ss, path_file_espacadores):
 
 
 def calculando_ci(info_ss, path_file_ci_liquido):
-    print('\nAdicionando o cálculo do CI líquido dos equipamentos...')
+    logging.info('Adicionando o cálculo do CI líquido dos equipamentos...')
 
     # Lendo informações do ci líquido dos equipamentos
     ci = pd.read_parquet(path_file_ci_liquido)
@@ -369,7 +380,7 @@ def calculando_ci(info_ss, path_file_ci_liquido):
 
 
 def descricao_duplicada(info_ss, path_file_ss_plan_dec_500):
-    print('\nSelecionando as SS com descrição das solicitações repetidas...')
+    logging.info('Selecionando as SS com descrição das solicitações repetidas...')
 
     # # removendo colunas desnecessárias
     # info_ss_descricao_duplicada = info_ss.drop(columns=['coordx', 'coordy', 'descricao_seccional', 'descricao_distrital', 'municipio', 'descricao_tipo_ss', 'data_situacao_ss', 'usuario_status', 'descricao_tipo_conclusao', 'regional'])
@@ -417,7 +428,7 @@ def descricao_duplicada(info_ss, path_file_ss_plan_dec_500):
 
 
 def convertendo_utm_lat_lon(info_ss):
-    print('\nConvertendo as coordenadas UTM para Latitude e Longitude...')
+    logging.info('Convertendo as coordenadas UTM para Latitude e Longitude...')
 
     # Cria a geometria a partir das coordenadas UTM
     geometry = [Point(xy) for xy in zip(info_ss['coordx'], info_ss['coordy'])]
@@ -447,7 +458,7 @@ def convertendo_utm_lat_lon(info_ss):
 
 
 def exportando_output(ginfo_ss, info_ss_descricao_duplicada, path_output, path_output_descricao_duplicada, path_file_indicador_atualizacao_bi):
-    print('\nExportando o resultado final...')
+    logging.info('Exportando o resultado final...')
 
     # Salvando o resultado final
     ginfo_ss.to_parquet(path_output, index=False)
@@ -463,7 +474,7 @@ if __name__ == "__main__":
     try:
         inicio = datetime.now()
 
-        print(f'\n\nProcesso iniciado em {inicio.strftime('%d/%m/%Y às %H:%M')} para extraír informações das SS do CIS.')
+        logging.info(f'Iniciando execução do script para extraír informações das solicitações de serviço do CIS.')
 
         # Caminho da pasta onde será armazenada a senha
         path_folder_senha = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Senha Codificada"
@@ -490,6 +501,9 @@ if __name__ == "__main__":
         # Caminho para o arquivo com o ci líquido dos equipamentos
         path_file_ci_liquido = r"\\km3rede2\grp4\VCQSD\Projetos\alimentadores-chi-ci\chi_ci_liquido.parquet"
 
+        # Coletando o usúario do CIS
+        usuario_cisdprd = 'DG_C800984'
+
         # Coletando a senha de acesso ao DB
         senha_cisdprd = obter_senha(path_folder_senha, 'senha_cisdprd.enc', 'chave_cisdprd.key')
 
@@ -497,7 +511,7 @@ if __name__ == "__main__":
         senha_denodo = obter_senha(path_folder_senha)
 
         # Coletando as informações das SSs geradas a partir de 2024 para MSC respectivas
-        info_ss = coletar_info_ss(senha_cisdprd)
+        info_ss = coletar_info_ss(usuario_cisdprd, senha_cisdprd)
 
         # Selecionando os equipamentos indicados na descrição da SS
         info_ss = selecionando_equipamento(info_ss)
@@ -525,6 +539,6 @@ if __name__ == "__main__":
 
         fim = datetime.now()
 
-        print(f"\nProcesso finalizado com sucesso em {fim.strftime('%d/%m/%Y às %H:%M')}. Decorrido {fim - inicio}")
+        logging.info(f"Processo finalizado com sucesso. Decorrido {fim - inicio}")
     except ValueError as e:
-        print(f'\nOcorreu o seguinte erro ao rodar o script: {e}')
+        logging.info(f'Ocorreu o seguinte erro ao rodar o script: {e}')
