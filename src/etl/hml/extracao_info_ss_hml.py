@@ -19,7 +19,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(r"\\Dis610912\srdnro\Alison do Nascimento - 800984\Projetos\extracao-info-ss\bat-file\log_execucao.txt", mode="w", encoding="latin-1"),
+        logging.FileHandler(r"\\dis610912\srdnro\Alison do Nascimento - 800984\Projetos\extracao-info-ss\log\log_execucao.txt", mode="w", encoding="latin-1"),
         logging.StreamHandler(sys.stdout)
     ]
 )
