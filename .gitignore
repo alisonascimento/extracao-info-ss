@@ -10,6 +10,7 @@
 power-bi/
 bat-file/
 .vscode/
+log/
 
 # Files
 log_execucao.txt
