@@ -101,6 +101,7 @@ def coletar_info_ss(usuario_cisdprd, senha_cisdprd):
         SELECT 
             cos.NUM_SEQ_OPER_COS numero_ss,
             cos.COD_UN_CONS_COS unidade_consumidora,
+            cuc.COD_LIVR_UEE codigo_livro,
             cos.DTA_INC_COS data_criacao_ss,
             cos.NOM_USU_INC_COS usuario_inclusao,
             cos.COD_SUB_TIPO_OS_COS tipo_ss,
@@ -172,7 +173,7 @@ def coletar_info_ss(usuario_cisdprd, senha_cisdprd):
     engine.dispose()
 
     # Ordenando as SS por data de criação
-    info_ss.data_conclusao = pd.to_datetime(info_ss.data_conclusao, yearfirst=True)
+    info_ss['data_conclusao'] = pd.to_datetime(info_ss.data_conclusao, yearfirst=True)
     info_ss.sort_values(by=['numero_ss', 'data_conclusao'], ascending=False, inplace=True)
 
     # Removendo valores duplicados
@@ -237,7 +238,7 @@ def selecionando_nome_usuario(info_ss, senha_denodo):
     info_ss.registro_profissional = pd.to_numeric(info_ss.registro_profissional, errors='coerce').astype('Int64')
 
     # Adicionando as informações do funcionário
-    funcionarios.registro_profissional = pd.to_numeric(funcionarios.registro_profissional, errors='coerce').astype('Int64')
+    funcionarios['registro_profissional'] = pd.to_numeric(funcionarios.registro_profissional, errors='coerce').astype('Int64')
     info_ss = info_ss.merge(funcionarios, how='left', on='registro_profissional')
 
     # Corrigindo a informação da coluna usuario_inclusao
@@ -273,7 +274,7 @@ def cea_critico(info_ss, path_file_cea_critico):
 
     # Adicionando indicador se o conjunto é critico
     info_ss.num_cea = pd.to_numeric(info_ss.num_cea, errors='coerce').astype('Int64')
-    cea_critico.num_cea = pd.to_numeric(cea_critico.num_cea, errors='coerce').astype('Int64')
+    cea_critico['num_cea'] = pd.to_numeric(cea_critico.num_cea, errors='coerce').astype('Int64')
     info_ss['indicador_cea_critico'] = np.where(info_ss.num_cea.isin(cea_critico.num_cea), 'SIM', 'NÃO')
 
     # Corrigindo o nome do conjunto
@@ -326,7 +327,7 @@ def indicador_ss(info_ss, path_file_espacadores):
     espacadores = espacadores[espacadores.considerar_calculo].copy()
 
     # Identificando se a SS foi gerada para instalar espaçadores
-    espacadores.numero_ss = pd.to_numeric(espacadores.numero_ss, errors='coerce').astype('Int64')
+    espacadores['numero_ss'] = pd.to_numeric(espacadores.numero_ss, errors='coerce').astype('Int64')
     espacadores.drop_duplicates(inplace=True)
     mask_numero_ss_contido = info_ss.numero_ss.isin(espacadores.numero_ss)
     info_ss.loc[mask_numero_ss_contido, "filtro"] = '#ESPACADORES'
@@ -341,7 +342,7 @@ def calculando_ci(info_ss, path_file_ci_liquido):
     ci = pd.read_parquet(path_file_ci_liquido)
 
     # Convertendo coluna data_referencia para datetime
-    ci.data_referencia = pd.to_datetime(ci.data_referencia, yearfirst=True)
+    ci['data_referencia'] = pd.to_datetime(ci.data_referencia, yearfirst=True)
 
     # Selecionando somente os últimos 3 meses
     mask_data_referencia = ci.data_referencia >= (datetime.now() - timedelta(days=90))
@@ -420,7 +421,7 @@ def descricao_duplicada(info_ss, path_file_ss_plan_dec_500):
 
     # Verificando se a SS do plano dec 500 está na descrição da SS
     info_ss_descricao_duplicada.numero_ss = pd.to_numeric(info_ss_descricao_duplicada.numero_ss, errors='coerce').astype('Int64')
-    ss_plan_dec_500.SS = pd.to_numeric(ss_plan_dec_500.SS, errors='coerce').astype('Int64')
+    ss_plan_dec_500['SS'] = pd.to_numeric(ss_plan_dec_500.SS, errors='coerce').astype('Int64')
     mask_ss_contido = info_ss_descricao_duplicada.numero_ss.isin(ss_plan_dec_500.SS)
     info_ss_descricao_duplicada['ss_dec_500'] = np.where(mask_ss_contido, True, False)
 
