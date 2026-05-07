@@ -161,7 +161,7 @@ def coletar_info_ss(usuario_cisdprd, senha_cisdprd):
             AND juc.DTA_FIM_VAL_JUC IS NULL
         LEFT JOIN TAB_CONJ cju
             ON juc.COD_CONJ_JUC = cju.COD_CONJ_CJU
-        WHERE cos.DTA_INC_COS >= DATE '2024-01-01'
+        WHERE cos.DTA_INC_COS >= DATE '2025-01-01'
             AND cos.COD_SUB_TIPO_OS_COS IN ('722', '724', '726', '674', '727', '669')
         ORDER BY cos.DTA_INC_COS DESC
     """
@@ -296,19 +296,14 @@ def classificar_ss(texto, mapeamento):
     return "OUTROS"
 
 
-def indicador_ss(info_ss, path_file_espacadores):
+# def indicador_ss(info_ss, path_file_espacadores):
+def indicador_ss(info_ss):
     logging.info('Adicionando filtro de indicadores das SS...')
 
     # Mapeamento dos padrões exibidos nas SS
     mapeamento = {
-        "#PLANODEC500": "#PLANODEC500ALIM",
-        "#PLANDEC500": "#PLANODEC500ALIM",
-        "#SENTINELA": "#SENTINELA",
-        #"#ESPACADORES": "#ESPACADORES",
-        "#FUMICULTOR": "#FUMICULTOR",
-        "#RECORR": "#RECORRENCIA",
-        "#VCQSD": "#VCQSD",
-        "#GDEC": "#GDEC"
+        "#GML": "#GML",
+        "#VCQSD": "#VCQSD"
     }
 
     # Adicionando um filtro para indicar o tipo de SS aberto
@@ -319,18 +314,18 @@ def indicador_ss(info_ss, path_file_espacadores):
     mask_descricao_ss_isna = info_ss.descricao_ss.isna()
     info_ss.loc[mask_descricao_ss_isna, "filtro"] = 'OUTROS'
 
-    # Lendo arquivo que contém as SS criadas para instalar espaçadores
-    coluna_interesse = ['numero_ss', 'considerar_calculo']
-    espacadores = pd.read_parquet(path_file_espacadores, columns=coluna_interesse)
+    # # Lendo arquivo que contém as SS criadas para instalar espaçadores
+    # coluna_interesse = ['numero_ss', 'considerar_calculo']
+    # espacadores = pd.read_parquet(path_file_espacadores, columns=coluna_interesse)
 
-    # Selecionando somente as SS que foram consideradas para o cálculo do plano 77/80
-    espacadores = espacadores[espacadores.considerar_calculo].copy()
+    # # Selecionando somente as SS que foram consideradas para o cálculo do plano 77/80
+    # espacadores = espacadores[espacadores.considerar_calculo].copy()
 
-    # Identificando se a SS foi gerada para instalar espaçadores
-    espacadores['numero_ss'] = pd.to_numeric(espacadores.numero_ss, errors='coerce').astype('Int64')
-    espacadores.drop_duplicates(inplace=True)
-    mask_numero_ss_contido = info_ss.numero_ss.isin(espacadores.numero_ss)
-    info_ss.loc[mask_numero_ss_contido, "filtro"] = '#ESPACADORES'
+    # # Identificando se a SS foi gerada para instalar espaçadores
+    # espacadores['numero_ss'] = pd.to_numeric(espacadores.numero_ss, errors='coerce').astype('Int64')
+    # espacadores.drop_duplicates(inplace=True)
+    # mask_numero_ss_contido = info_ss.numero_ss.isin(espacadores.numero_ss)
+    # info_ss.loc[mask_numero_ss_contido, "filtro"] = '#ESPACADORES'
 
     return info_ss
 
@@ -380,7 +375,7 @@ def calculando_ci(info_ss, path_file_ci_liquido):
     return info_ss
 
 
-def descricao_duplicada(info_ss, path_file_ss_plan_dec_500):
+def descricao_duplicada(info_ss):
     logging.info('Selecionando as SS com descrição das solicitações repetidas...')
 
     # # removendo colunas desnecessárias
@@ -400,30 +395,9 @@ def descricao_duplicada(info_ss, path_file_ss_plan_dec_500):
     mask_descricao_duplicada = info_ss_descricao_duplicada.descricao_ss.duplicated(keep=False)
     info_ss_descricao_duplicada = info_ss_descricao_duplicada[mask_descricao_duplicada].copy()
 
-    # Convertendo coluna unidade_consumidora para Int64
-    info_ss_descricao_duplicada.unidade_consumidora = pd.to_numeric(info_ss_descricao_duplicada.unidade_consumidora, errors='coerce').astype('Int64')
-
-    # Lendo a planilha de SSs do plano dec 500
-    colunas_interesse = ['SS', 'MOTIVO']
-    ss_plan_dec_500 = pd.read_excel(path_file_ss_plan_dec_500, sheet_name='CHAVES', usecols=colunas_interesse)
-
-    # Selecionando as SSs do plano dec 500
-    ss_plan_dec_500 = ss_plan_dec_500[ss_plan_dec_500['MOTIVO'] == 'Plano 500'].copy()
-
-    # Removendo coluna desnecessária
-    ss_plan_dec_500.drop(columns=['MOTIVO'], inplace=True)
-
-    # Removendo duplicadas
-    ss_plan_dec_500.drop_duplicates(inplace=True)
-
-    # Resetando index
-    ss_plan_dec_500.reset_index(drop=True, inplace=True)
-
-    # Verificando se a SS do plano dec 500 está na descrição da SS
-    info_ss_descricao_duplicada.numero_ss = pd.to_numeric(info_ss_descricao_duplicada.numero_ss, errors='coerce').astype('Int64')
-    ss_plan_dec_500['SS'] = pd.to_numeric(ss_plan_dec_500.SS, errors='coerce').astype('Int64')
-    mask_ss_contido = info_ss_descricao_duplicada.numero_ss.isin(ss_plan_dec_500.SS)
-    info_ss_descricao_duplicada['ss_dec_500'] = np.where(mask_ss_contido, True, False)
+    # Convertendo coluna unidade_consumidora e numero_ss para Int64
+    info_ss_descricao_duplicada['unidade_consumidora'] = pd.to_numeric(info_ss_descricao_duplicada.unidade_consumidora, errors='coerce').astype('Int64')
+    info_ss_descricao_duplicada['numero_ss'] = pd.to_numeric(info_ss_descricao_duplicada.numero_ss, errors='coerce').astype('Int64')
 
     return info_ss_descricao_duplicada
 
@@ -489,15 +463,12 @@ if __name__ == "__main__":
         # Caminho para salvar arquivo que será reconhecido pelo Power Automate para rodar o fluxo que atualiza o BI
         path_file_indicador_atualizacao_bi = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\VCQSD - Atualizar BIs\\info-ss\\info-ss.txt"
 
-        # Caminho para o arquivo com as SS do plano dec 500
-        path_file_ss_plan_dec_500 = r'\\mgarede\grp\SDN_O&M\STDNRO\5-GSIM\SSs CADASTRO.xlsx'
-
         # Caminho para o arquivo com os conjuntos críticos
         # path_file_cea_critico = r"\\km3rede2\grp4\VCQSD\Projetos\cea-critico\35_ceas_criticos.xlsx"
         path_file_cea_critico = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Programas\\Relatorio_semanal\\35_ceas_criticos.xlsx"
 
-        # Caminho para o arquivo com o número das SS indicadas pela VCQSD para instalar espaçadores
-        path_file_espacadores = r"\\km3rede2\grp4\VCQSD\Projetos\plano-77-80\ss-espacadores-historico\ss_espacadores_historico.parquet"
+        # # Caminho para o arquivo com o número das SS indicadas pela VCQSD para instalar espaçadores
+        # path_file_espacadores = r"\\km3rede2\grp4\VCQSD\Projetos\plano-77-80\ss-espacadores-historico\ss_espacadores_historico.parquet"
 
         # Caminho para o arquivo com o ci líquido dos equipamentos
         path_file_ci_liquido = r"\\km3rede2\grp4\VCQSD\Projetos\alimentadores-chi-ci\chi_ci_liquido.parquet"
@@ -524,13 +495,13 @@ if __name__ == "__main__":
         info_ss = cea_critico(info_ss, path_file_cea_critico)
 
         # Adicionando a informação da indicação do tipo de SS criada
-        info_ss = indicador_ss(info_ss, path_file_espacadores)
+        info_ss = indicador_ss(info_ss)
 
         # Calculando o ci líquido dos equipamentos nos últimos 3 meses
         info_ss = calculando_ci(info_ss, path_file_ci_liquido)
 
         # Selecionando as SS com descrição das solicitações repetidas
-        info_ss_descricao_duplicada = descricao_duplicada(info_ss, path_file_ss_plan_dec_500)
+        info_ss_descricao_duplicada = descricao_duplicada(info_ss)
 
         # Convertendo utm para lat lon
         ginfo_ss = convertendo_utm_lat_lon(info_ss)
@@ -541,5 +512,5 @@ if __name__ == "__main__":
         fim = datetime.now()
 
         logging.info(f"Processo finalizado com sucesso. Decorrido {fim - inicio}")
-    except ValueError as e:
-        logging.info(f'Ocorreu o seguinte erro ao rodar o script: {e}')
+    except Exception:
+        logging.exception('Erro ao rodar o script.')
