@@ -270,7 +270,14 @@ def cea_critico(info_ss, path_file_cea_critico):
     logging.info('Adicionando informações dos CEA críticos...')
 
     # Lendo arquivo de conjuntos críticos
-    cea_critico = pd.read_excel(path_file_cea_critico, header=None, names=['nome_cea', 'num_cea'])
+    cea_critico = pd.read_excel(path_file_cea_critico, names=['num_cea', 'nome_cea', 'status'])
+
+    # Selecionando somente os CEAs críticos
+    mask_status = cea_critico.status.str.strip().str.lower() == 'força tarefa'
+    cea_critico = cea_critico[mask_status].copy()
+
+    # Removendo coluna de status
+    cea_critico.drop(columns=['status'], inplace=True)
 
     # Adicionando indicador se o conjunto é critico
     info_ss.num_cea = pd.to_numeric(info_ss.num_cea, errors='coerce').astype('Int64')
@@ -296,7 +303,6 @@ def classificar_ss(texto, mapeamento):
     return "OUTROS"
 
 
-# def indicador_ss(info_ss, path_file_espacadores):
 def indicador_ss(info_ss):
     logging.info('Adicionando filtro de indicadores das SS...')
 
@@ -313,19 +319,6 @@ def indicador_ss(info_ss):
     # Atribuindo OUTROS para as SS com descrição vazias
     mask_descricao_ss_isna = info_ss.descricao_ss.isna()
     info_ss.loc[mask_descricao_ss_isna, "filtro"] = 'OUTROS'
-
-    # # Lendo arquivo que contém as SS criadas para instalar espaçadores
-    # coluna_interesse = ['numero_ss', 'considerar_calculo']
-    # espacadores = pd.read_parquet(path_file_espacadores, columns=coluna_interesse)
-
-    # # Selecionando somente as SS que foram consideradas para o cálculo do plano 77/80
-    # espacadores = espacadores[espacadores.considerar_calculo].copy()
-
-    # # Identificando se a SS foi gerada para instalar espaçadores
-    # espacadores['numero_ss'] = pd.to_numeric(espacadores.numero_ss, errors='coerce').astype('Int64')
-    # espacadores.drop_duplicates(inplace=True)
-    # mask_numero_ss_contido = info_ss.numero_ss.isin(espacadores.numero_ss)
-    # info_ss.loc[mask_numero_ss_contido, "filtro"] = '#ESPACADORES'
 
     return info_ss
 
@@ -464,11 +457,7 @@ if __name__ == "__main__":
         path_file_indicador_atualizacao_bi = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\VCQSD - Atualizar BIs\\info-ss\\info-ss.txt"
 
         # Caminho para o arquivo com os conjuntos críticos
-        # path_file_cea_critico = r"\\km3rede2\grp4\VCQSD\Projetos\cea-critico\35_ceas_criticos.xlsx"
-        path_file_cea_critico = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Programas\\Relatorio_semanal\\35_ceas_criticos.xlsx"
-
-        # # Caminho para o arquivo com o número das SS indicadas pela VCQSD para instalar espaçadores
-        # path_file_espacadores = r"\\km3rede2\grp4\VCQSD\Projetos\plano-77-80\ss-espacadores-historico\ss_espacadores_historico.parquet"
+        path_file_cea_critico = f"C:\\Users\\{os.getlogin()}\\OneDrive - copel.com\\Programas\\Chi_ci_graficos_pagina_vcq\\Forca_tarefa.xlsx"
 
         # Caminho para o arquivo com o ci líquido dos equipamentos
         path_file_ci_liquido = r"\\km3rede2\grp4\VCQSD\Projetos\alimentadores-chi-ci\chi_ci_liquido.parquet"
