@@ -162,7 +162,7 @@ def coletar_info_ss(usuario_cisdprd, senha_cisdprd):
         LEFT JOIN TAB_CONJ cju
             ON juc.COD_CONJ_JUC = cju.COD_CONJ_CJU
         WHERE cos.DTA_INC_COS >= DATE '2025-01-01'
-            AND cos.COD_SUB_TIPO_OS_COS IN ('722', '724', '726', '674', '727', '669')
+            AND cos.COD_SUB_TIPO_OS_COS IN ('722', '724', '726', '674', '727', '669', '712')
         ORDER BY cos.DTA_INC_COS DESC
     """
 
