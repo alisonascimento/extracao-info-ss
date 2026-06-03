@@ -87,11 +87,11 @@ def obter_senha(path_folder_senha, senha_enc='senha.enc', chave_key='chave.key')
     return senha
 
 
-def coletar_info_ss(usuario_cisdprd, senha_cisdprd):
+def coletar_info_ss(usuario_cisdprd, senha_cisdprd, path_oracle):
     logging.info('Coletando informações das SS do CIS...')
 
     # Instanciando oracle para acessar via Python
-    oracledb.init_oracle_client(lib_dir=r"C:\Programs\Oracle\instantclient_23_7", config_dir=r"C:\APL\Oracle12_32\12CR2\network\admin")
+    oracledb.init_oracle_client(lib_dir=path_oracle, config_dir=r"C:\APL\Oracle12_32\12CR2\network\admin")
     uid = usuario_cisdprd
     pwd = senha_cisdprd
     db = 'cisdprd'
@@ -471,8 +471,16 @@ if __name__ == "__main__":
         # Coletando a senha de acesso ao DB
         senha_denodo = obter_senha(path_folder_senha)
 
+        # # Indicador para verificar se o script será rodado no servidor
+        rodando_no_servidor = False
+
+        if rodando_no_servidor:
+            path_oracle = r"C:\Program Files\Oracle\instantclient_23_9"
+        else:
+            path_oracle = r"C:\Programs\Oracle\instantclient_23_7"
+
         # Coletando as informações das SSs geradas a partir de 2024 para MSC respectivas
-        info_ss = coletar_info_ss(usuario_cisdprd, senha_cisdprd)
+        info_ss = coletar_info_ss(usuario_cisdprd, senha_cisdprd, path_oracle)
 
         # Selecionando os equipamentos indicados na descrição da SS
         info_ss = selecionando_equipamento(info_ss)
