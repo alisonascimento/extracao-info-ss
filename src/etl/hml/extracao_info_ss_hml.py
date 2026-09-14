@@ -308,6 +308,7 @@ def indicador_ss(info_ss):
 
     # Mapeamento dos padrões exibidos nas SS
     mapeamento = {
+        "#FUMICULTOR": "#FUMICULTOR",
         "#GML": "#GML",
         "#VCQSD": "#VCQSD"
     }
