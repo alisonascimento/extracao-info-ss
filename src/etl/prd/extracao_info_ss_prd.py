@@ -100,6 +100,7 @@ def coletar_info_ss(usuario_cisdprd, senha_cisdprd, path_oracle):
     query = f"""
         SELECT 
             cos.NUM_SEQ_OPER_COS numero_ss,
+            cos.NUM_SEQ_GER_COS sequencia_ss,
             cos.COD_UN_CONS_COS unidade_consumidora,
             cuc.COD_LIVR_UEE codigo_livro,
             cos.DTA_INC_COS data_criacao_ss,
@@ -162,7 +163,7 @@ def coletar_info_ss(usuario_cisdprd, senha_cisdprd, path_oracle):
         LEFT JOIN TAB_CONJ cju
             ON juc.COD_CONJ_JUC = cju.COD_CONJ_CJU
         WHERE cos.DTA_INC_COS >= DATE '2025-01-01'
-            AND cos.COD_SUB_TIPO_OS_COS IN ('722', '724', '726', '674', '727', '669', '712', '685')
+            AND cos.COD_SUB_TIPO_OS_COS IN ('722', '724', '726', '674', '727', '669', '712', '685', '731')
         ORDER BY cos.DTA_INC_COS DESC
     """
 
@@ -174,10 +175,10 @@ def coletar_info_ss(usuario_cisdprd, senha_cisdprd, path_oracle):
 
     # Ordenando as SS por data de criação
     info_ss['data_conclusao'] = pd.to_datetime(info_ss.data_conclusao, yearfirst=True)
-    info_ss.sort_values(by=['numero_ss', 'data_conclusao'], ascending=False, inplace=True)
+    info_ss.sort_values(by=['numero_ss', 'sequencia_ss', 'data_conclusao'], ascending=False, inplace=True)
 
     # Removendo valores duplicados
-    info_ss.drop_duplicates(subset='numero_ss', inplace=True)
+    info_ss.drop_duplicates(subset=['numero_ss', 'sequencia_ss'], inplace=True)
 
     return info_ss
 
